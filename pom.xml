@@ -6,7 +6,7 @@
 
     <groupId>com.pinterest</groupId>
     <artifactId>secor</artifactId>
-    <version>0.23-SNAPSHOT</version>
+    <version>0.23-nexmo</version>
     <packaging>jar</packaging>
     <name>secor</name>
     <description>Kafka to s3/gs/swift logs exporter</description>
@@ -530,6 +530,77 @@
                     <nexusUrl>https://oss.sonatype.org/</nexusUrl>
                     <autoReleaseAfterClose>true</autoReleaseAfterClose>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <artifactId>jdeb</artifactId>
+                <groupId>org.vafer</groupId>
+                <version>1.5</version>
+                <executions>
+                    <execution>
+                        <id>deb</id>
+                        <phase>package</phase>
+                        <goals><goal>jdeb</goal></goals>
+                        <configuration>
+                            <controlDir>${basedir}/src/deb/control</controlDir>
+                            <dataSet>
+                                <data>
+                                    <src>${project.build.directory}/${project.build.finalName}.jar</src>
+                                    <type>file</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/opt/secor</prefix>
+                                        <user>secor</user>
+                                        <group>secor</group>
+                                    </mapper>
+                                </data>
+
+                                <data>
+                                    <type>link</type>
+                                    <symlink>true</symlink>
+                                    <linkName>/opt/secor/secor.jar</linkName>
+                                    <linkTarget>/opt/secor/${project.build.finalName}.jar</linkTarget>
+                                </data>
+
+                                <data>
+                                    <src>target/lib</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/opt/secor/lib</prefix>
+                                        <filemode>644</filemode>
+                                        <user>secor</user>
+                                        <group>secor</group>
+                                    </mapper>
+                                </data>
+
+                                <data>
+                                    <src>${basedir}/src/deb/init.d</src>
+                                    <type>directory</type>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/etc/init.d</prefix>
+                                        <filemode>755</filemode>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+
+                                <data>
+                                    <type>template</type>
+                                    <paths>
+                                        <path>etc/${project.artifactId}</path>
+                                    </paths>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <user>secor</user>
+                                        <group>secor</group>
+                                    </mapper>
+                                </data>
+                            </dataSet>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -1,0 +1,10 @@
+Package: [[name]]
+Version: [[version]]
+Section: misc
+Priority: optional
+Architecture: all
+Depends: jdk (>= 1.5)
+Maintainer: Nexmo
+Description: [[description]]
+Distribution: stable
+Depends:
