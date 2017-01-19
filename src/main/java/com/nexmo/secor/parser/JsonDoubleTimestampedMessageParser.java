@@ -21,7 +21,11 @@ import com.pinterest.secor.message.Message;
 import com.pinterest.secor.parser.TimestampedMessageParser;
 import net.minidev.json.JSONObject;
 import net.minidev.json.JSONValue;
+import org.apache.commons.configuration.ConfigurationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -30,6 +34,7 @@ import java.util.Date;
  * from JSON data and partitions data by year/month/day/hour + writing date.
  */
 public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser {
+    private static final Logger LOG = LoggerFactory.getLogger(JsonDoubleTimestampedMessageParser.class);
     private final boolean m_timestampRequired;
 
     /*
@@ -42,6 +47,7 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
     protected final SimpleDateFormat mDayFormatter;
     protected final SimpleDateFormat mHourFormatter;
     protected final SimpleDateFormat mWriteDayFormatter;
+    protected final SimpleDateFormat mRfc3339Parser;
 
     public JsonDoubleTimestampedMessageParser(SecorConfig config) {
         super(config);
@@ -61,6 +67,9 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
 
         mWriteDayFormatter = new SimpleDateFormat("yyyyMMdd");
         mWriteDayFormatter.setTimeZone(config.getTimeZone());
+
+        mRfc3339Parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX");
+        mRfc3339Parser.setTimeZone(config.getTimeZone());
     }
 
     protected String[] generatePartitions(long timestampMillis, boolean usingHourly, boolean usingMinutely)
@@ -82,7 +91,15 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
         if (jsonObject != null) {
             Object fieldValue = getJsonFieldValue(jsonObject);
             if (fieldValue != null) {
-                return toMillis(Double.valueOf(fieldValue.toString()).longValue());
+                try {
+                    return toMillis(Double.valueOf(fieldValue.toString()).longValue());
+                } catch (NumberFormatException nfe) {
+                    try {
+                        return toMillis(mRfc3339Parser.parse(fieldValue.toString()).getTime());
+                    } catch (ParseException pe) {
+                        LOG.error("Parsing exception for " + fieldValue.toString(), pe);
+                    }
+                }
             }
         } else if (m_timestampRequired) {
             throw new RuntimeException("Missing timestamp field for message: " + message);
@@ -90,4 +107,34 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
         return 0;
     }
 
+    public static void main(String[] args) {
+        System.setProperty("config", "src/main/config/secor.dev.properties");
+        try {
+            SecorConfig secorConfig = SecorConfig.load();
+            JsonDoubleTimestampedMessageParser messageParser = new JsonDoubleTimestampedMessageParser(secorConfig);
+
+            String[] jsonStrings = {
+                    "{\"timestamp\":\"2017-01-17T13:48:32.564Z\"}"
+            };
+
+            for (String json: jsonStrings) {
+                Message message = new Message("TestTopic", 0, 0L, null, json.getBytes());
+                try {
+                    System.out.println("Result:");
+                    System.out.println("- Message: " + json);
+                    System.out.print("- Path: ");
+                    for (String path: messageParser.generatePartitions(messageParser.extractTimestampMillis(message), false, false)) {
+                        System.out.print(path+"/");
+                    }
+                    System.out.println();
+                } catch (Exception ex) {
+                    System.err.println("Exception during parsing");
+                    ex.printStackTrace();
+                }
+            }
+        } catch (ConfigurationException ce) {
+            System.err.println("Configuration exception");
+            ce.printStackTrace();
+        }
+    }
 }
