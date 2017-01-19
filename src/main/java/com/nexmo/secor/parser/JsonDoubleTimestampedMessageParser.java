@@ -47,7 +47,8 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
     protected final SimpleDateFormat mDayFormatter;
     protected final SimpleDateFormat mHourFormatter;
     protected final SimpleDateFormat mWriteDayFormatter;
-    protected final SimpleDateFormat mRfc3339Parser;
+    protected final SimpleDateFormat mIso8601Parser;
+    protected final SimpleDateFormat mIso8601ParserMs;
 
     public JsonDoubleTimestampedMessageParser(SecorConfig config) {
         super(config);
@@ -68,8 +69,11 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
         mWriteDayFormatter = new SimpleDateFormat("yyyyMMdd");
         mWriteDayFormatter.setTimeZone(config.getTimeZone());
 
-        mRfc3339Parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX");
-        mRfc3339Parser.setTimeZone(config.getTimeZone());
+        mIso8601Parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX");
+        mIso8601Parser.setTimeZone(config.getTimeZone());
+
+        mIso8601ParserMs = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX");
+        mIso8601ParserMs.setTimeZone(config.getTimeZone());
     }
 
     protected String[] generatePartitions(long timestampMillis, boolean usingHourly, boolean usingMinutely)
@@ -95,10 +99,12 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
                     return toMillis(Double.valueOf(fieldValue.toString()).longValue());
                 } catch (NumberFormatException nfe) {
                     try {
-                        return toMillis(mRfc3339Parser.parse(fieldValue.toString()).getTime());
-                    } catch (ParseException pe) {
-                        LOG.error("Parsing exception for " + fieldValue.toString(), pe);
-                    }
+                        return toMillis(mIso8601Parser.parse(fieldValue.toString()).getTime());
+                    } catch (ParseException pe) {}
+                    try {
+                        return toMillis(mIso8601ParserMs.parse(fieldValue.toString()).getTime());
+                    } catch (ParseException pe) {}
+                    LOG.error("Unable to extract date from " + fieldValue.toString());
                 }
             }
         } else if (m_timestampRequired) {
@@ -114,7 +120,8 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
             JsonDoubleTimestampedMessageParser messageParser = new JsonDoubleTimestampedMessageParser(secorConfig);
 
             String[] jsonStrings = {
-                    "{\"timestamp\":\"2017-01-17T13:48:32.564Z\"}"
+                    "{\"timestamp\":\"2017-01-17T13:48:32.564Z\"}",
+                    "{\"timestamp\":\"2017-01-17T13:48:32+00:00\"}"
             };
 
             for (String json: jsonStrings) {
