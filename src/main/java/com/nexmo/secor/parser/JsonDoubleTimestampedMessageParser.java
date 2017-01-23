@@ -120,6 +120,9 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
             JsonDoubleTimestampedMessageParser messageParser = new JsonDoubleTimestampedMessageParser(secorConfig);
 
             String[] jsonStrings = {
+                    "{\"timestamp\":\"1484956817\"}",
+                    "{\"timestamp\":\"1484953217672\"}",
+                    "{\"timestamp\":\"1484949617.409\"}",
                     "{\"timestamp\":\"2017-01-17T13:48:32.564Z\"}",
                     "{\"timestamp\":\"2017-01-17T13:48:32+00:00\"}"
             };
