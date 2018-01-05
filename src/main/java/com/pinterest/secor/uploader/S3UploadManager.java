@@ -16,6 +16,7 @@
  */
 package com.pinterest.secor.uploader;
 
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
@@ -28,6 +29,7 @@ import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.auth.AWSCredentials;
@@ -80,6 +82,7 @@ public class S3UploadManager extends UploadManager {
 
         final String accessKey = mConfig.getAwsAccessKey();
         final String secretKey = mConfig.getAwsSecretKey();
+        final String sessionToken = mConfig.getAwsSessionToken();
         final String endpoint = mConfig.getAwsEndpoint();
         final String region = mConfig.getAwsRegion();
         final String awsRole = mConfig.getAwsRole();
@@ -106,7 +109,11 @@ public class S3UploadManager extends UploadManager {
         } else {
             provider = new AWSCredentialsProvider() {
                 public AWSCredentials getCredentials() {
-                    return new BasicAWSCredentials(accessKey, secretKey);
+                    if (sessionToken.isEmpty()) {
+                        return new BasicAWSCredentials(accessKey, secretKey);
+                    } else {
+                        return new BasicSessionCredentials(accessKey, secretKey, sessionToken);
+                    }
                 }
                 public void refresh() {}
             };
@@ -117,6 +124,12 @@ public class S3UploadManager extends UploadManager {
         }
 
         client = new AmazonS3Client(provider, clientConfiguration);
+
+        if (mConfig.getAwsClientPathStyleAccess()) {
+            S3ClientOptions clientOptions = new S3ClientOptions();
+            clientOptions.setPathStyleAccess(true);
+            client.setS3ClientOptions(clientOptions);
+        }
 
         if (!endpoint.isEmpty()) {
             client.setEndpoint(endpoint);

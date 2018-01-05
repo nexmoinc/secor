@@ -16,8 +16,6 @@
  */
 package com.pinterest.secor.parser;
 
-import com.google.protobuf.Timestamp;
-import com.google.protobuf.util.Timestamps;
 import com.pinterest.secor.common.SecorConfig;
 import com.pinterest.secor.message.Message;
 import org.slf4j.Logger;
@@ -58,12 +56,15 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
     protected final boolean mUsingHourly;
     protected final boolean mUsingMinutely;
 
+    protected final boolean mUseKafkaTimestamp;
+
 
     public TimestampedMessageParser(SecorConfig config) {
         super(config);
 
         mUsingHourly = usingHourly(config);
         mUsingMinutely = usingMinutely(config);
+        mUseKafkaTimestamp = useKafkaTimestamp(config);
         mDtFormat = usingDateFormat(config);
         mHrFormat = usingHourFormat(config);
         mMinFormat = usingMinuteFormat(config);
@@ -91,7 +92,6 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
 
         mDtHrMinFormatter = new SimpleDateFormat(mDtFormat+ "-" + mHrFormat + "-" + mMinFormat);
         mDtHrMinFormatter.setTimeZone(config.getTimeZone());
-
     }
 
     static boolean usingHourly(SecorConfig config) {
@@ -123,15 +123,22 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
     }
 
     static String usingMinutePrefix(SecorConfig config) {
-        return config.getString("partitioner.granularity.min.prefix", "min=");
+        return config.getString("partitioner.granularity.minute.prefix", "min=");
+    }
+
+    static boolean useKafkaTimestamp(SecorConfig config) {
+        return config.useKafkaTimestamp();
     }
 
     protected static long toMillis(final long timestamp) {
         final long nanosecondDivider = (long) Math.pow(10, 9 + 9);
+        final long microsecondDivider = (long) Math.pow(10, 9 + 6);
         final long millisecondDivider = (long) Math.pow(10, 9 + 3);
         long timestampMillis;
         if (timestamp / nanosecondDivider > 0L) {
             timestampMillis = timestamp / (long) Math.pow(10, 6);
+        } else if (timestamp / microsecondDivider > 0L) {
+            timestampMillis = timestamp / (long) Math.pow(10, 3);
         } else if (timestamp / millisecondDivider > 0L) {
             timestampMillis = timestamp;
         } else {  // assume seconds
@@ -141,6 +148,10 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
     }
 
     public abstract long extractTimestampMillis(final Message message) throws Exception;
+
+    public long getTimestampMillis(Message message) throws Exception {
+        return (mUseKafkaTimestamp) ? toMillis(message.getTimestamp()) : extractTimestampMillis(message);
+    }
 
     protected String[] generatePartitions(long timestampMillis, boolean usingHourly, boolean usingMinutely)
             throws Exception {
@@ -169,14 +180,14 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
     @Override
     public String[] extractPartitions(Message message) throws Exception {
         // Date constructor takes milliseconds since epoch.
-        long timestampMillis = extractTimestampMillis(message);
+        long timestampMillis = getTimestampMillis(message);
         return generatePartitions(timestampMillis, mUsingHourly, mUsingMinutely);
     }
 
     private long getFinalizedTimestampMillis(Message lastMessage,
                                              Message committedMessage) throws Exception {
-        long lastTimestamp = extractTimestampMillis(lastMessage);
-        long committedTimestamp = extractTimestampMillis(committedMessage);
+        long lastTimestamp = getTimestampMillis(lastMessage);
+        long committedTimestamp = getTimestampMillis(committedMessage);
         long now = System.currentTimeMillis();
         if (lastTimestamp == committedTimestamp &&
                 (now - lastTimestamp) > mFinalizerDelaySeconds * 1000) {
@@ -213,8 +224,8 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
         minMillis -= mFinalizerDelaySeconds * 1000L;
         LOG.info("adjusted millis {}", minMillis);
         return generatePartitions(minMillis, mUsingHourly, mUsingMinutely);
-
     }
+
     @Override
     public String[] getPreviousPartitions(String[] partitions) throws Exception {
         long millis = parsePartitions(partitions);
@@ -266,4 +277,4 @@ public abstract class TimestampedMessageParser extends MessageParser implements 
         }
         return generatePartitions(millis, usingHourly, usingMinutely);
     }
-    }
+}

@@ -131,6 +131,14 @@ public class SecorConfig {
         return getString("kafka.offsets.storage");
     }
 
+    public boolean useKafkaTimestamp() {
+        return getBoolean("kafka.useTimestamp", false);
+    }
+
+    public String getKafkaMessageTimestampClass() {
+        return getString("kafka.message.timestamp.className");
+    }
+
     public int getGeneration() {
         return getInt("secor.generation");
     }
@@ -265,12 +273,20 @@ public class SecorConfig {
         return getString("aws.secret.key");
     }
 
+    public String getAwsSessionToken() {
+        return getString("aws.session.token");
+    }
+
     public String getAwsEndpoint() {
         return getString("aws.endpoint");
     }
 
     public String getAwsRole() {
         return getString("aws.role");
+    }
+
+    public boolean getAwsClientPathStyleAccess() {
+        return getBoolean("aws.client.pathstyleaccess", false);
     }
 
     public boolean getAwsProxyEnabled(){
@@ -383,6 +399,10 @@ public class SecorConfig {
 
     public boolean isMessageTimestampRequired() {
         return mProperties.getBoolean("message.timestamp.required");
+    }
+
+    public String getMessageSplitFieldName() {
+        return getString("message.split.field.name");
     }
 
     public int getFinalizerLookbackPeriods() {
@@ -556,5 +576,43 @@ public class SecorConfig {
 
     public String getThriftProtocolClass() {
         return mProperties.getString("secor.thrift.protocol.class");
+    }
+
+    public String getMetricsCollectorClass() {
+        return getString("secor.monitoring.metrics.collector.class");
+    }
+    
+    /**
+     * This method is used for fetching all the properties which start with the given prefix.
+     * It returns a Map of all those key-val.
+     * 
+     * e.g.
+     * a.b.c=val1
+     * a.b.d=val2
+     * a.b.e=val3
+     * 
+     * If prefix is a.b then,
+     * These will be fetched as a map {c => val1, d => val2, e => val3}
+     * 
+     * @param prefix
+     * @return
+     */
+    public Map<String, String> getPropertyMapForPrefix(String prefix) {
+        Iterator<String> keys = mProperties.getKeys(prefix);
+        Map<String, String> map = new HashMap<String, String>();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            String value = mProperties.getString(key);
+            map.put(key.substring(prefix.length() + 1), value);
+        }
+        return map;
+    }
+    
+    public Map<String, String> getORCMessageSchema() {
+        return getPropertyMapForPrefix("secor.orc.message.schema");
+    }
+    
+    public String getORCSchemaProviderClass(){
+        return getString("secor.orc.schema.provider");
     }
 }
