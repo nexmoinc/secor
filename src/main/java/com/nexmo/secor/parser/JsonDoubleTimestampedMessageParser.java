@@ -127,8 +127,9 @@ public class JsonDoubleTimestampedMessageParser extends TimestampedMessageParser
                     "{\"timestamp\":\"2017-01-17T13:48:32+00:00\"}"
             };
 
+            long timestamp = System.currentTimeMillis();
             for (String json: jsonStrings) {
-                Message message = new Message("TestTopic", 0, 0L, null, json.getBytes());
+                Message message = new Message("TestTopic", 0, 0L, null, json.getBytes(), timestamp);
                 try {
                     System.out.println("Result:");
                     System.out.println("- Message: " + json);
