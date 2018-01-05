@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sudo su - secor -c "whoami" || ( echo "ERROR: User 'secor' is not available on host, please create it" && exit -1 )

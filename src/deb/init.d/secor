@@ -1,0 +1,77 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# Provides:          secor
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: pinterest/secor
+# Description:       Pinterest's secor service to push kafka topics to S3. See https://github.com/nexmoinc/secor
+### END INIT INFO
+
+# Default values that can be overriden by system configuration file
+SECOR_NAME=secor
+SECOR_RUNTIME=/opt/${SECOR_NAME}
+SECOR_JAR=${SECOR_NAME}.jar
+SECOR_LOG4J=log4j.prod.properties
+SECOR_CONF=secor.prod.backup.properties
+SECOR_CLASS=com.pinterest.secor.main.ConsumerMain
+SECOR_GROUP=secor_backup
+SECOR_LOGS=/var/log/$SECOR_NAME.log
+SECOR_PIDFILE=/var/run/$SECOR_NAME.pid
+
+SECOR_USER=${SECOR_NAME}
+SECOR_JVM_OPTS=
+SECOR_ARGS=
+
+# Load overrides from system configuration file in /etc/default
+[ -f /etc/default/${SECOR_NAME} ] &&[ -r /etc/default/${SECOR_NAME} ] && . /etc/default/${SECOR_NAME}
+
+# Combine variables to define command line
+SECOR_EXEC=$JAVA_HOME/bin/java
+SECOR_OPTS="${SECOR_JVM_OPTS} -ea -Dsecor_group=${SECOR_GROUP} \
+           -Dlog4j.configuration=${SECOR_LOG4J} \
+           -Dconfig=${SECOR_CONF} \
+           -cp ${SECOR_JAR}:lib/* \
+           ${SECOR_CLASS} ${SECOR_ARGS}"
+
+. /lib/lsb/init-functions
+
+do_start () {
+    echo "---- START $SECOR_NAME - $(date) ----" >> $SECOR_LOGS
+    log_daemon_msg "Starting system $SECOR_NAME daemon"
+    start-stop-daemon --verbose --start --no-close --background --pidfile $SECOR_PIDFILE --make-pidfile --user $SECOR_USER --chuid $SECOR_USER --chdir $SECOR_RUNTIME --exec $SECOR_EXEC -- $SECOR_OPTS >> $SECOR_LOGS 2>&1
+    log_end_msg $?
+}
+
+do_stop () {
+    echo "---- STOP $SECOR_NAME - $(date) ----" >> $SECOR_LOGS
+    log_daemon_msg "Stopping system $SECOR_NAME daemon"
+    start-stop-daemon --stop --pidfile $SECOR_PIDFILE --retry TERM/30/TERM/30/KILL/5 >> $SECOR_LOGS 2>&1
+    log_end_msg $?
+}
+
+
+case "$1" in
+
+    start|stop)
+        do_${1}
+        ;;
+
+    restart|reload|force-reload)
+        do_stop
+        do_start
+        ;;
+
+    status)
+        status_of_proc -p $SECOR_PIDFILE "$SECOR_NAME" "$SECOR_NAME" && exit 0 || exit $?
+        ;;
+
+    *)
+        echo "Usage: /etc/init.d/$SECOR_NAME {start|stop|restart|status}"
+        exit 1
+        ;;
+
+esac
+exit 0
