@@ -41,6 +41,7 @@ SECOR_OPTS="${SECOR_JVM_OPTS} -ea -Dsecor_group=${SECOR_GROUP} \
 do_start () {
     echo "---- START $SECOR_NAME - $(date) ----" >> $SECOR_LOGS
     log_daemon_msg "Starting system $SECOR_NAME daemon"
+    [[ "$SECOR_MAX_OPEN_FILE" != "" ]] && ulimit -n $SECOR_MAX_OPEN_FILE
     start-stop-daemon --verbose --start --no-close --background --pidfile $SECOR_PIDFILE --make-pidfile --user $SECOR_USER --chuid $SECOR_USER --chdir $SECOR_RUNTIME --exec $SECOR_EXEC -- $SECOR_OPTS >> $SECOR_LOGS 2>&1
     log_end_msg $?
 }
