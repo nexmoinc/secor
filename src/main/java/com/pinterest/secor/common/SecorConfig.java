@@ -628,10 +628,6 @@ public class SecorConfig {
                 !this.getSocketReceiveBufferBytes().isEmpty()) {
             props.put("receive.buffer.bytes", this.getSocketReceiveBufferBytes());
         }
-        if (this.getSocketReceiveBufferBytes() != null &&
-                !this.getSocketReceiveBufferBytes().isEmpty()) {
-            props.put("receive.buffer.bytes", this.getSocketReceiveBufferBytes());
-        }
         if (this.getFetchMessageMaxBytes() != null && !this.getFetchMessageMaxBytes().isEmpty()) {
             props.put("fetch.max.bytes", this.getFetchMessageMaxBytes());
         }
