@@ -89,9 +89,18 @@ public class SecorConfig {
         return getInt("kafka.consumer.timeout.ms");
     }
 
+    public int getRequestTimeoutMs() {
+        return getInt("kafka.request.timeout.ms");
+    }
+
+    public int getMaxPollIntervalMs() {
+        return getInt("kafka.max.poll.interval.ms");
+    }
+
     public String getAutoOffsetReset() {
         return getString("kafka.auto.offset.reset");
     }
+
     public String getIsolationLevel() {
         return getString("kafka.isolation.level");
     }
@@ -601,11 +610,24 @@ public class SecorConfig {
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
 
+
+
         if (this.getIsolationLevel() != null &&
                 !this.getIsolationLevel().isEmpty()) {
             props.put("isolation.level", this.getIsolationLevel());
         }
 
+        if (this.getRequestTimeoutMs() != 0) {
+            props.put("request.timeout.ms", this.getRequestTimeoutMs());
+        }
+        if (this.getMaxPollIntervalMs() != 0) {
+            props.put("max.poll.interval.m", this.getMaxPollIntervalMs());
+        }
+
+        if (this.getSocketReceiveBufferBytes() != null &&
+                !this.getSocketReceiveBufferBytes().isEmpty()) {
+            props.put("receive.buffer.bytes", this.getSocketReceiveBufferBytes());
+        }
         if (this.getSocketReceiveBufferBytes() != null &&
                 !this.getSocketReceiveBufferBytes().isEmpty()) {
             props.put("receive.buffer.bytes", this.getSocketReceiveBufferBytes());
