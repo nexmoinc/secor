@@ -33,7 +33,7 @@
 //import com.pinterest.secor.common.OffsetTracker;
 //import com.pinterest.secor.common.OstrichAdminService;
 //import com.pinterest.secor.common.SecorConfig;
-//import com.pinterest.secor.common.TopicPartition;
+//import org.apache.kafka.common.TopicPartition;
 //import com.pinterest.secor.consumer.Consumer;
 //import com.pinterest.secor.tools.LogFileDeleter;
 //import com.pinterest.secor.util.FileUtil;

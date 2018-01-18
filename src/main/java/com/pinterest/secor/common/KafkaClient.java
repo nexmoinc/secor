@@ -16,6 +16,7 @@
  */
 package com.pinterest.secor.common;
 
+import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
 import com.pinterest.secor.message.Message;
 import com.pinterest.secor.timestamp.KafkaMessageTimestampFactory;
@@ -31,6 +32,8 @@ import kafka.javaapi.TopicMetadataRequest;
 import kafka.javaapi.TopicMetadataResponse;
 import kafka.javaapi.consumer.SimpleConsumer;
 import kafka.message.MessageAndOffset;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.protocol.Errors;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -51,12 +54,10 @@ public class KafkaClient {
     private static final Logger LOG = LoggerFactory.getLogger(KafkaClient.class);
 
     private SecorConfig mConfig;
-    private ZookeeperConnector mZookeeperConnector;
     private KafkaMessageTimestampFactory mKafkaMessageTimestampFactory;
 
     public KafkaClient(SecorConfig config) {
         mConfig = config;
-        mZookeeperConnector = new ZookeeperConnector(mConfig);
         mKafkaMessageTimestampFactory = new KafkaMessageTimestampFactory(mConfig.getKafkaMessageTimestampClass());
     }
 
@@ -65,20 +66,20 @@ public class KafkaClient {
     private HostAndPort findLeader(TopicPartition topicPartition) {
         SimpleConsumer consumer = null;
         try {
-            LOG.debug("looking up leader for topic {} partition {}", topicPartition.getTopic(), topicPartition.getPartition());
+            LOG.debug("looking up leader for topic {} partition {}", topicPartition.topic(), topicPartition.partition());
             consumer = createConsumer(
                 mConfig.getKafkaSeedBrokerHost(),
                 mConfig.getKafkaSeedBrokerPort(),
                 "leaderLookup");
             List<String> topics = new ArrayList<String>();
-            topics.add(topicPartition.getTopic());
+            topics.add(topicPartition.topic());
             TopicMetadataRequest request = new TopicMetadataRequest(topics);
             TopicMetadataResponse response = consumer.send(request);
 
             List<TopicMetadata> metaData = response.topicsMetadata();
             for (TopicMetadata item : metaData) {
                 for (PartitionMetadata part : item.partitionsMetadata()) {
-                    if (part.partitionId() == topicPartition.getPartition()) {
+                    if (part.partitionId() == topicPartition.partition()) {
                         return HostAndPort.fromParts(part.leader().host(), part.leader().port());
                     }
                 }
@@ -92,12 +93,12 @@ public class KafkaClient {
     }
 
     private static String getClientName(TopicPartition topicPartition) {
-        return "secorClient_" + topicPartition.getTopic() + "_" + topicPartition.getPartition();
+        return "secorClient_" + topicPartition.topic() + "_" + topicPartition.partition();
     }
 
     private long findLastOffset(TopicPartition topicPartition, SimpleConsumer consumer) {
-        TopicAndPartition topicAndPartition = new TopicAndPartition(topicPartition.getTopic(),
-                topicPartition.getPartition());
+        TopicAndPartition topicAndPartition = new TopicAndPartition(topicPartition.topic(),
+                topicPartition.partition());
         Map<TopicAndPartition, PartitionOffsetRequestInfo> requestInfo =
                 new HashMap<TopicAndPartition, PartitionOffsetRequestInfo>();
         requestInfo.put(topicAndPartition, new PartitionOffsetRequestInfo(
@@ -110,27 +111,27 @@ public class KafkaClient {
 
         if (response.hasError()) {
             throw new RuntimeException("Error fetching offset data. Reason: " +
-                    response.errorCode(topicPartition.getTopic(), topicPartition.getPartition()));
+                    response.errorCode(topicPartition.topic(), topicPartition.partition()));
         }
-        long[] offsets = response.offsets(topicPartition.getTopic(),
-                topicPartition.getPartition());
+        long[] offsets = response.offsets(topicPartition.topic(),
+                topicPartition.partition());
         return offsets[0] - 1;
     }
 
     private Message getMessage(TopicPartition topicPartition, long offset,
                                SimpleConsumer consumer) {
         LOG.debug("fetching message topic {} partition {} offset {}",
-                topicPartition.getTopic(), topicPartition.getPartition(), offset);
+                topicPartition.topic(), topicPartition.partition(), offset);
         final int MAX_MESSAGE_SIZE_BYTES = mConfig.getMaxMessageSizeBytes();
         final String clientName = getClientName(topicPartition);
         kafka.api.FetchRequest request = new FetchRequestBuilder().clientId(clientName)
-                .addFetch(topicPartition.getTopic(), topicPartition.getPartition(), offset,
+                .addFetch(topicPartition.topic(), topicPartition.partition(), offset,
                           MAX_MESSAGE_SIZE_BYTES)
                 .build();
         FetchResponse response = consumer.fetch(request);
         if (response.hasError()) {
             consumer.close();
-            int errorCode = response.errorCode(topicPartition.getTopic(), topicPartition.getPartition());
+            int errorCode = response.errorCode(topicPartition.topic(), topicPartition.partition());
 
             if (errorCode == Errors.OFFSET_OUT_OF_RANGE.code()) {
               throw new MessageDoesNotExistException();
@@ -139,7 +140,7 @@ public class KafkaClient {
             }
         }
         MessageAndOffset messageAndOffset = response.messageSet(
-                topicPartition.getTopic(), topicPartition.getPartition()).iterator().next();
+                topicPartition.topic(), topicPartition.partition()).iterator().next();
         byte[] keyBytes = null;
         if (messageAndOffset.message().hasKey()) {
             ByteBuffer key = messageAndOffset.message().key();
@@ -156,7 +157,7 @@ public class KafkaClient {
                 ? mKafkaMessageTimestampFactory.getKafkaMessageTimestamp().getTimestamp(messageAndOffset)
                 : 0l;
 
-        return new Message(topicPartition.getTopic(), topicPartition.getPartition(),
+        return new Message(topicPartition.topic(), topicPartition.partition(),
                 messageAndOffset.offset(), keyBytes, payloadBytes, timestamp);
     }
 
@@ -166,7 +167,7 @@ public class KafkaClient {
 
     public SimpleConsumer createConsumer(TopicPartition topicPartition) {
         HostAndPort leader = findLeader(topicPartition);
-        LOG.debug("leader for topic {} partition {} is {}", topicPartition.getTopic(), topicPartition.getPartition(), leader.toString());
+        LOG.debug("leader for topic {} partition {} is {}", topicPartition.topic(), topicPartition.partition(), leader.toString());
         final String clientName = getClientName(topicPartition);
         return createConsumer(leader.getHostText(), leader.getPort(), clientName);
     }
@@ -212,29 +213,19 @@ public class KafkaClient {
     }
 
     public Message getCommittedMessage(TopicPartition topicPartition) throws Exception {
-        SimpleConsumer consumer = null;
-        try {
-            long committedOffset = mZookeeperConnector.getCommittedOffsetCount(topicPartition) - 1;
-            if (committedOffset < 0) {
-                return null;
-            }
-            consumer = createConsumer(topicPartition);
-            return getMessage(topicPartition, committedOffset, consumer);
-        } catch (MessageDoesNotExistException e) {
-          // If a RuntimeEMessageDoesNotExistException exception is raised,
-          // the message at the last comitted offset does not exist in Kafka.
-          // This is usually due to the message being compacted away by the
-          // Kafka log compaction process.
-          //
-          // That is no an exceptional situation - in fact it can be normal if
-          // the topic being consumed by Secor has a low volume. So in that
-          // case, simply return null
-          LOG.warn("no committed message for topic {} partition {}", topicPartition.getTopic(), topicPartition.getPartition());
-          return null;
-        } finally {
-            if (consumer != null) {
-                consumer.close();
-            }
-        }
+        // TODO: to be implemented with new consumer
+        return null;
+    }
+
+    public List<String> getCommittedTopics() {
+        List<String> topics = Lists.newArrayList();
+        // TODO: to be implemented with new consumer
+        return topics;
+    }
+
+    public List<Integer> getCommittedPartitions(String topic) {
+        List<Integer> partitions = Lists.newArrayList();
+        // TODO: to be implemented with new consumer
+        return partitions;
     }
 }

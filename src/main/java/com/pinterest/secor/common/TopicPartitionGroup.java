@@ -16,6 +16,8 @@
  */
 package com.pinterest.secor.common;
 
+import org.apache.kafka.common.TopicPartition;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -35,7 +37,7 @@ public class TopicPartitionGroup {
     }
 
     public TopicPartitionGroup(TopicPartition tp) {
-        this(tp.getTopic(), new int[]{tp.getPartition()});
+        this(tp.topic(), new int[]{tp.partition()});
     }
 
     public String getTopic() {

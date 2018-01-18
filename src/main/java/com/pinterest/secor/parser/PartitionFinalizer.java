@@ -22,6 +22,7 @@ import com.pinterest.secor.util.CompressionUtil;
 import com.pinterest.secor.util.FileUtil;
 import com.pinterest.secor.util.ReflectionUtil;
 import org.apache.hadoop.io.compress.CompressionCodec;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,6 @@ public class PartitionFinalizer {
     private static final Logger LOG = LoggerFactory.getLogger(PartitionFinalizer.class);
 
     private final SecorConfig mConfig;
-    private final ZookeeperConnector mZookeeperConnector;
     private final TimestampedMessageParser mMessageParser;
     private final KafkaClient mKafkaClient;
     private final QuboleClient mQuboleClient;
@@ -50,7 +50,6 @@ public class PartitionFinalizer {
     public PartitionFinalizer(SecorConfig config) throws Exception {
         mConfig = config;
         mKafkaClient = new KafkaClient(mConfig);
-        mZookeeperConnector = new ZookeeperConnector(mConfig);
         mMessageParser = (TimestampedMessageParser) ReflectionUtil.createMessageParser(
           mConfig.getMessageParserClass(), mConfig);
         mQuboleClient = new QuboleClient(mConfig);
@@ -77,7 +76,7 @@ public class PartitionFinalizer {
             if (lastMessage == null || committedMessage == null) {
                 // This will happen if no messages have been posted to the given topic partition.
                 LOG.error("For topic {} partition {}, lastMessage: {}, committed: {}",
-                    topicPartition.getTopic(), topicPartition.getPartition(),
+                    topicPartition.topic(), topicPartition.partition(),
                     lastMessage, committedMessage);
                 continue;
             }
@@ -195,7 +194,7 @@ public class PartitionFinalizer {
     }
 
     public void finalizePartitions() throws Exception {
-        List<String> topics = mZookeeperConnector.getCommittedOffsetTopics();
+        List<String> topics = mKafkaClient.getCommittedTopics();
         for (String topic : topics) {
             if (!topic.matches(mConfig.getKafkaTopicFilter())) {
                 LOG.info("skipping topic {}", topic);

@@ -18,30 +18,23 @@ package com.pinterest.secor.reader;
 
 import com.pinterest.secor.common.OffsetTracker;
 import com.pinterest.secor.common.SecorConfig;
-import com.pinterest.secor.common.TopicPartition;
+import org.apache.kafka.common.TopicPartition;
 import com.pinterest.secor.message.Message;
 import com.pinterest.secor.timestamp.KafkaMessageTimestampFactory;
 import com.pinterest.secor.util.IdUtil;
 import com.pinterest.secor.util.RateLimitUtil;
 import com.pinterest.secor.util.StatsUtil;
-import kafka.consumer.Consumer;
-import kafka.consumer.ConsumerConfig;
-import kafka.consumer.ConsumerIterator;
-import kafka.consumer.KafkaStream;
-import kafka.consumer.TopicFilter;
-import kafka.consumer.Whitelist;
-import kafka.consumer.Blacklist;
-import kafka.javaapi.consumer.ConsumerConnector;
-import kafka.message.MessageAndMetadata;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Properties;
+import java.util.regex.Pattern;
 
 /**
  * Message reader consumer raw Kafka messages.
@@ -53,12 +46,13 @@ public class MessageReader {
 
     protected SecorConfig mConfig;
     protected OffsetTracker mOffsetTracker;
-    protected ConsumerConnector mConsumerConnector;
-    protected ConsumerIterator mIterator;
+    protected KafkaConsumer<String, String> mConsumer;
     protected HashMap<TopicPartition, Long> mLastAccessTime;
     protected final int mTopicPartitionForgetSeconds;
     protected final int mCheckMessagesPerSecond;
     protected int mNMessages;
+    protected ConsumerRecords<String, String> mRecords = null;
+    protected Iterator<ConsumerRecord<String, String>> mRecordsIterator = null;
     protected KafkaMessageTimestampFactory mKafkaMessageTimestampFactory;
 
     public MessageReader(SecorConfig config, OffsetTracker offsetTracker) throws
@@ -66,18 +60,13 @@ public class MessageReader {
         mConfig = config;
         mOffsetTracker = offsetTracker;
 
-        mConsumerConnector = Consumer.createJavaConsumerConnector(createConsumerConfig());
+        mConsumer = new KafkaConsumer<String, String>(mConfig.createKafkaConsumerConfig());
 
-        if (!mConfig.getKafkaTopicBlacklist().isEmpty() && !mConfig.getKafkaTopicFilter().isEmpty()) {
-            throw new RuntimeException("Topic filter and blacklist cannot be both specified.");
+        if (!mConfig.getKafkaTopicBlacklist().isEmpty()) {
+            throw new RuntimeException("Topic blacklist is not supported.");
         }
-        TopicFilter topicFilter = !mConfig.getKafkaTopicBlacklist().isEmpty()? new Blacklist(mConfig.getKafkaTopicBlacklist()):
-                new Whitelist(mConfig.getKafkaTopicFilter());
-        LOG.debug("Use TopicFilter {}({})", topicFilter.getClass(), topicFilter);
-        List<KafkaStream<byte[], byte[]>> streams =
-            mConsumerConnector.createMessageStreamsByFilter(topicFilter);
-        KafkaStream<byte[], byte[]> stream = streams.get(0);
-        mIterator = stream.iterator();
+        mConsumer.subscribe(Pattern.compile(mConfig.getKafkaTopicFilter()));
+
         mLastAccessTime = new HashMap<TopicPartition, Long>();
         StatsUtil.setLabel("secor.kafka.consumer.id", IdUtil.getConsumerId());
         mTopicPartitionForgetSeconds = mConfig.getTopicPartitionForgetSeconds();
@@ -104,72 +93,47 @@ public class MessageReader {
             if (topicPartitions.length() > 0) {
                 topicPartitions.append(' ');
             }
-            topicPartitions.append(topicPartition.getTopic() + '/' +
-                                   topicPartition.getPartition());
+            topicPartitions.append(topicPartition.topic() + '/' +
+                                   topicPartition.partition());
         }
         StatsUtil.setLabel("secor.topic_partitions", topicPartitions.toString());
     }
 
-    private ConsumerConfig createConsumerConfig() throws UnknownHostException {
-        Properties props = new Properties();
-        props.put("zookeeper.connect", mConfig.getZookeeperQuorum() + mConfig.getKafkaZookeeperPath());
-        props.put("group.id", mConfig.getKafkaGroup());
 
-        props.put("zookeeper.session.timeout.ms",
-                  Integer.toString(mConfig.getZookeeperSessionTimeoutMs()));
-        props.put("zookeeper.sync.time.ms", Integer.toString(mConfig.getZookeeperSyncTimeMs()));
-        props.put("auto.commit.enable", "false");
-        props.put("auto.offset.reset", mConfig.getConsumerAutoOffsetReset());
-        props.put("consumer.timeout.ms", Integer.toString(mConfig.getConsumerTimeoutMs()));
-        props.put("consumer.id", IdUtil.getConsumerId());
-        // Properties required to upgrade from kafka 0.8.x to 0.9.x
-        props.put("dual.commit.enabled", mConfig.getDualCommitEnabled());
-        props.put("offsets.storage", mConfig.getOffsetsStorage());
-
-        props.put("partition.assignment.strategy", mConfig.getPartitionAssignmentStrategy());
-        if (mConfig.getRebalanceMaxRetries() != null &&
-            !mConfig.getRebalanceMaxRetries().isEmpty()) {
-            props.put("rebalance.max.retries", mConfig.getRebalanceMaxRetries());
-        }
-        if (mConfig.getRebalanceBackoffMs() != null &&
-            !mConfig.getRebalanceBackoffMs().isEmpty()) {
-            props.put("rebalance.backoff.ms", mConfig.getRebalanceBackoffMs());
-        }
-        if (mConfig.getSocketReceiveBufferBytes() != null &&
-            !mConfig.getSocketReceiveBufferBytes().isEmpty()) {
-            props.put("socket.receive.buffer.bytes", mConfig.getSocketReceiveBufferBytes());
-        }
-        if (mConfig.getFetchMessageMaxBytes() != null && !mConfig.getFetchMessageMaxBytes().isEmpty()) {
-            props.put("fetch.message.max.bytes", mConfig.getFetchMessageMaxBytes());
-        }
-        if (mConfig.getFetchMinBytes() != null && !mConfig.getFetchMinBytes().isEmpty()) {
-            props.put("fetch.min.bytes", mConfig.getFetchMinBytes());
-        }
-        if (mConfig.getFetchWaitMaxMs() != null && !mConfig.getFetchWaitMaxMs().isEmpty()) {
-            props.put("fetch.wait.max.ms", mConfig.getFetchWaitMaxMs());
-        }
-
-        return new ConsumerConfig(props);
+    public KafkaConsumer<String, String> getKafkaConsumer() {
+        return mConsumer;
     }
 
-    public boolean hasNext() {
-        return mIterator.hasNext();
+    public boolean hasNext() throws RetryLaterException {
+        if ((mRecords == null) || (mRecordsIterator == null) || (!mRecordsIterator.hasNext())) {
+            mRecords = mConsumer.poll(mConfig.getConsumerTimeoutMs());
+            mRecordsIterator = mRecords.iterator();
+        }
+        if (!mRecordsIterator.hasNext()) {
+            throw new RetryLaterException("No message for now, retry in a bit");
+        }
+        return (mRecordsIterator != null);
     }
 
-    public Message read() {
+    public Message read() throws RetryLaterException {
         assert hasNext();
         mNMessages = (mNMessages + 1) % mCheckMessagesPerSecond;
         if (mNMessages % mCheckMessagesPerSecond == 0) {
             RateLimitUtil.acquire(mCheckMessagesPerSecond);
         }
-        MessageAndMetadata<byte[], byte[]> kafkaMessage = mIterator.next();
+        ConsumerRecord<String, String> record;
 
+        record = mRecordsIterator.next();
         long timestamp = (mConfig.useKafkaTimestamp())
-                ? mKafkaMessageTimestampFactory.getKafkaMessageTimestamp().getTimestamp(kafkaMessage)
+                ? record.timestamp()
                 : 0l;
-        Message message = new Message(kafkaMessage.topic(), kafkaMessage.partition(),
-                                      kafkaMessage.offset(), kafkaMessage.key(),
-                                      kafkaMessage.message(), timestamp);
+        if (record.value()==null) {
+            LOG.info("Some record is null in topic {}, partition {}, offset {}",
+                    record.topic(), record.partition(), record.offset());
+        }
+        Message message = new Message(record.topic(), record.partition(),
+                                      record.offset(), record.key()==null?null:record.key().getBytes(),
+                                      record.value()==null?null:record.value().getBytes(), timestamp);
         TopicPartition topicPartition = new TopicPartition(message.getTopic(),
                                                            message.getKafkaPartition());
         updateAccessTime(topicPartition);

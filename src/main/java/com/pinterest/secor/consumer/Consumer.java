@@ -24,6 +24,7 @@ import com.pinterest.secor.message.ParsedMessage;
 import com.pinterest.secor.monitoring.MetricCollector;
 import com.pinterest.secor.parser.MessageParser;
 import com.pinterest.secor.reader.MessageReader;
+import com.pinterest.secor.reader.RetryLaterException;
 import com.pinterest.secor.transformer.MessageTransformer;
 import com.pinterest.secor.uploader.UploadManager;
 import com.pinterest.secor.uploader.Uploader;
@@ -73,7 +74,7 @@ public class Consumer extends Thread {
         UploadManager uploadManager = ReflectionUtil.createUploadManager(mConfig.getUploadManagerClass(), mConfig);
 
         mUploader = ReflectionUtil.createUploader(mConfig.getUploaderClass());
-        mUploader.init(mConfig, mOffsetTracker, fileRegistry, uploadManager, mMetricCollector);
+        mUploader.init(mConfig, mOffsetTracker, fileRegistry, uploadManager, mMetricCollector, mMessageReader.getKafkaConsumer());
         mMessageWriter = new MessageWriter(mConfig, mOffsetTracker, fileRegistry);
         mMessageParser = ReflectionUtil.createMessageParser(mConfig.getMessageParserClass(), mConfig);
         mMessageTransformer = ReflectionUtil.createMessageTransformer(mConfig.getMessageTransformerClass(), mConfig);
@@ -97,6 +98,7 @@ public class Consumer extends Thread {
         while (true) {
             boolean hasMoreMessages = consumeNextMessage();
             if (!hasMoreMessages) {
+                LOG.warn("No more message to consume. leaving consumption loop");
                 break;
             }
 
@@ -127,9 +129,10 @@ public class Consumer extends Thread {
                 return false;
             }
             rawMessage = mMessageReader.read();
-        } catch (ConsumerTimeoutException e) {
+        } catch (RetryLaterException e) {
             // We wait for a new message with a timeout to periodically apply the upload policy
             // even if no messages are delivered.
+            LOG.info("No more message to consume for now, waiting for more");
             LOG.trace("Consumer timed out", e);
         }
         if (rawMessage != null) {

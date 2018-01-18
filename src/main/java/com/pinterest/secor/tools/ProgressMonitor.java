@@ -23,8 +23,7 @@ import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
 import com.pinterest.secor.common.KafkaClient;
 import com.pinterest.secor.common.SecorConfig;
-import com.pinterest.secor.common.TopicPartition;
-import com.pinterest.secor.common.ZookeeperConnector;
+import org.apache.kafka.common.TopicPartition;
 import com.pinterest.secor.message.Message;
 import com.pinterest.secor.parser.MessageParser;
 import com.pinterest.secor.parser.TimestampedMessageParser;
@@ -59,7 +58,6 @@ public class ProgressMonitor {
     private static final String PERIOD = ".";
 
     private SecorConfig mConfig;
-    private ZookeeperConnector mZookeeperConnector;
     private KafkaClient mKafkaClient;
     private MessageParser mMessageParser;
     private String mPrefix;
@@ -69,7 +67,6 @@ public class ProgressMonitor {
             throws Exception
     {
         mConfig = config;
-        mZookeeperConnector = new ZookeeperConnector(mConfig);
         mKafkaClient = new KafkaClient(mConfig);
         mMessageParser = (MessageParser) ReflectionUtil.createMessageParser(
                 mConfig.getMessageParserClass(), mConfig);
@@ -176,16 +173,11 @@ public class ProgressMonitor {
     }
 
     private List<Stat> getStats() throws Exception {
-        List<String> topics = mZookeeperConnector.getCommittedOffsetTopics();
+        List<String> topics = mKafkaClient.getCommittedTopics();
         List<Stat> stats = Lists.newArrayList();
 
         for (String topic : topics) {
-            if (topic.matches(mConfig.getMonitoringBlacklistTopics()) ||
-                    !topic.matches(mConfig.getKafkaTopicFilter())) {
-                LOG.info("skipping topic {}", topic);
-                continue;
-            }
-            List<Integer> partitions = mZookeeperConnector.getCommittedOffsetPartitions(topic);
+            List<Integer> partitions = mKafkaClient.getCommittedPartitions(topic);
             for (Integer partition : partitions) {
                 TopicPartition topicPartition = new TopicPartition(topic, partition);
                 Message committedMessage = mKafkaClient.getCommittedMessage(topicPartition);

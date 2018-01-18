@@ -20,7 +20,9 @@ import com.google.api.client.repackaged.com.google.common.base.Strings;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang.StringUtils;
+import org.apache.kafka.common.serialization.StringDeserializer;
 
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -79,32 +81,23 @@ public class SecorConfig {
         return getInt("kafka.seed.broker.port");
     }
 
-    public String getKafkaZookeeperPath() {
-        return getString("kafka.zookeeper.path");
-    }
-
-    public String getZookeeperQuorum() {
-        return StringUtils.join(getStringArray("zookeeper.quorum"), ',');
+    public String getBootstrapServers() {
+        return StringUtils.join(getStringArray("kafka.bootstrap.servers"), ',');
     }
 
     public int getConsumerTimeoutMs() {
         return getInt("kafka.consumer.timeout.ms");
     }
 
-    public String getConsumerAutoOffsetReset() {
-        return getString("kafka.consumer.auto.offset.reset");
+    public String getAutoOffsetReset() {
+        return getString("kafka.auto.offset.reset");
+    }
+    public String getIsolationLevel() {
+        return getString("kafka.isolation.level");
     }
 
     public String getPartitionAssignmentStrategy() {
         return getString("kafka.partition.assignment.strategy");
-    }
-
-    public String getRebalanceMaxRetries() {
-        return getString("kafka.rebalance.max.retries");
-    }
-
-    public String getRebalanceBackoffMs() {
-        return getString("kafka.rebalance.backoff.ms");
     }
 
     public String getFetchMessageMaxBytes() {
@@ -219,14 +212,6 @@ public class SecorConfig {
 
     public String getKafkaGroup() {
         return getString("secor.kafka.group");
-    }
-
-    public int getZookeeperSessionTimeoutMs() {
-        return getInt("zookeeper.session.timeout.ms");
-    }
-
-    public int getZookeeperSyncTimeMs() {
-        return getInt("zookeeper.sync.time.ms");
     }
 
     public String getMessageParserClass() {
@@ -361,10 +346,6 @@ public class SecorConfig {
     	return getBoolean("statsd.prefixWithConsumerGroup");
     }
 
-    public String getMonitoringBlacklistTopics() {
-        return getString("monitoring.blacklist.topics");
-    }
-
     public String getMonitoringPrefix() {
         return getString("monitoring.prefix");
     }
@@ -448,10 +429,6 @@ public class SecorConfig {
         throw new RuntimeException("secor.file.writer.Delimiter length can not be greater than 1 character");
       }
       return writerDelimiter;
-    }
-
-    public String getPerfTestTopicPrefix() {
-    	return getString("secor.kafka.perf_topic_prefix");
     }
 
     public String getZookeeperPath() {
@@ -610,5 +587,39 @@ public class SecorConfig {
     
     public String getORCSchemaProviderClass(){
         return getString("secor.orc.schema.provider");
+    }
+
+
+    public Properties createKafkaConsumerConfig() {
+        Properties props = new Properties();
+        props.put("bootstrap.servers", this.getBootstrapServers());
+        props.put("group.id", this.getKafkaGroup());
+
+        props.put("enable.auto.commit", "false");
+        props.put("auto.offset.reset", this.getAutoOffsetReset());
+        props.put("partition.assignment.strategy", this.getPartitionAssignmentStrategy());
+        props.put("key.deserializer", StringDeserializer.class.getName());
+        props.put("value.deserializer", StringDeserializer.class.getName());
+
+        if (this.getIsolationLevel() != null &&
+                !this.getIsolationLevel().isEmpty()) {
+            props.put("isolation.level", this.getIsolationLevel());
+        }
+
+        if (this.getSocketReceiveBufferBytes() != null &&
+                !this.getSocketReceiveBufferBytes().isEmpty()) {
+            props.put("receive.buffer.bytes", this.getSocketReceiveBufferBytes());
+        }
+        if (this.getFetchMessageMaxBytes() != null && !this.getFetchMessageMaxBytes().isEmpty()) {
+            props.put("fetch.max.bytes", this.getFetchMessageMaxBytes());
+        }
+        if (this.getFetchMinBytes() != null && !this.getFetchMinBytes().isEmpty()) {
+            props.put("fetch.min.bytes", this.getFetchMinBytes());
+        }
+        if (this.getFetchWaitMaxMs() != null && !this.getFetchWaitMaxMs().isEmpty()) {
+            props.put("fetch.wait.max.ms", this.getFetchWaitMaxMs());
+        }
+
+        return props;
     }
 }

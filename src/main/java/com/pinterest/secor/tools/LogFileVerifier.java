@@ -18,7 +18,7 @@ package com.pinterest.secor.tools;
 
 import com.pinterest.secor.common.LogFilePath;
 import com.pinterest.secor.common.SecorConfig;
-import com.pinterest.secor.common.TopicPartition;
+import org.apache.kafka.common.TopicPartition;
 import com.pinterest.secor.io.FileReader;
 import com.pinterest.secor.io.KeyValue;
 import com.pinterest.secor.util.CompressionUtil;
@@ -135,8 +135,8 @@ public class LogFileVerifier {
                 if (previousOffset != -2 && offset - previousOffset != previousMessageCount) {
                     TopicPartition topicPartition = (TopicPartition) entry.getKey();
                     throw new RuntimeException("Message count of " + previousMessageCount +
-                                               " in topic " + topicPartition.getTopic() +
-                                               " partition " + topicPartition.getPartition() +
+                                               " in topic " + topicPartition.topic() +
+                                               " partition " + topicPartition.partition() +
                                                " does not agree with adjacent offsets " +
                                                previousOffset + " and " + offset);
                 }
@@ -183,8 +183,8 @@ public class LogFileVerifier {
             for (Long offset : offsets) {
                 if (lastOffset != -2) {
                     assert lastOffset + 1 == offset: Long.toString(offset) + " + 1 == " + offset +
-                        " for topic " + topicPartition.getTopic() + " partition " +
-                        topicPartition.getPartition();
+                        " for topic " + topicPartition.topic() + " partition " +
+                        topicPartition.partition();
                 }
                 lastOffset = offset;
             }

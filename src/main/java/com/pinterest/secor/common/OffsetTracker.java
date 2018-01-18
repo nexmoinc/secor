@@ -16,6 +16,7 @@
  */
 package com.pinterest.secor.common;
 
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,10 +54,10 @@ public class OffsetTracker {
         if (lastSeenOffset + 1 != offset) {
             if (lastSeenOffset >= 0) {
                 LOG.warn("offset for topic {} partition {} changed from {} to {}",
-                        topicPartition.getTopic(),topicPartition.getPartition(),lastSeenOffset, offset);
+                        topicPartition.topic(),topicPartition.partition(),lastSeenOffset, offset);
             } else {
                 LOG.info("starting to consume topic {} partition {} from offset {}",
-                        topicPartition.getTopic(),topicPartition.getPartition(),offset);
+                        topicPartition.topic(),topicPartition.partition(),offset);
             }
         }
         if (mFirstSeendOffset.get(topicPartition) == null) {

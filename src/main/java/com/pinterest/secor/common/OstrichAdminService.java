@@ -16,15 +16,19 @@
  */
 package com.pinterest.secor.common;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 import com.pinterest.secor.util.StatsUtil;
 import com.twitter.ostrich.admin.*;
 import com.twitter.util.Duration;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Option;
+import scala.collection.JavaConverters;
 import scala.collection.Map$;
 import scala.collection.immutable.List;
 import scala.collection.immutable.List$;
@@ -45,6 +49,7 @@ public class OstrichAdminService {
 
     public void start() {
         Duration[] defaultLatchIntervals = {Duration.apply(1, TimeUnit.MINUTES)};
+        ArrayList<Duration> defaultLatchIntervalsAL = new ArrayList<Duration>();
         @SuppressWarnings("deprecation")
         AdminServiceFactory adminServiceFactory = new AdminServiceFactory(
             this.mPort,
@@ -53,8 +58,9 @@ public class OstrichAdminService {
             Option.<String>empty(),
             List$.MODULE$.<Regex>empty(),
             Map$.MODULE$.<String, CustomHttpHandler>empty(),
-            List.<Duration>fromArray(defaultLatchIntervals)
+            JavaConverters.asScalaBufferConverter(Arrays.asList(defaultLatchIntervals)).asScala().toList()
         );
+
         RuntimeEnvironment runtimeEnvironment = new RuntimeEnvironment(this);
         adminServiceFactory.apply(runtimeEnvironment);
         try {

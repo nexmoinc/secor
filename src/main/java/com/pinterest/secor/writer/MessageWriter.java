@@ -20,7 +20,7 @@ import com.pinterest.secor.common.FileRegistry;
 import com.pinterest.secor.common.LogFilePath;
 import com.pinterest.secor.common.OffsetTracker;
 import com.pinterest.secor.common.SecorConfig;
-import com.pinterest.secor.common.TopicPartition;
+import org.apache.kafka.common.TopicPartition;
 import com.pinterest.secor.io.FileWriter;
 import com.pinterest.secor.io.KeyValue;
 import com.pinterest.secor.message.Message;
@@ -74,13 +74,13 @@ public class MessageWriter {
                                                            message.getKafkaPartition());
         long lastSeenOffset = mOffsetTracker.getLastSeenOffset(topicPartition);
         if (message.getOffset() != lastSeenOffset + 1) {
-            StatsUtil.incr("secor.consumer_rebalance_count." + topicPartition.getTopic());
+            StatsUtil.incr("secor.consumer_rebalance_count." + topicPartition.topic());
             // There was a rebalancing event since we read the last message.
-            LOG.debug("offset of message {} does not follow sequentially the last seen offset {}. " +
-                            "Deleting files in topic {} partition {}",
-                    message, lastSeenOffset, topicPartition.getTopic(), topicPartition.getPartition());
-
-            mFileRegistry.deleteTopicPartition(topicPartition);
+//            LOG.debug("offset of message {} does not follow sequentially the last seen offset {}. " +
+//                            "Deleting files in topic {} partition {}",
+//                    message, lastSeenOffset, topicPartition.topic(), topicPartition.partition());
+//
+//            mFileRegistry.deleteTopicPartition(topicPartition);
         }
         mOffsetTracker.setLastSeenOffset(topicPartition, message.getOffset());
     }
