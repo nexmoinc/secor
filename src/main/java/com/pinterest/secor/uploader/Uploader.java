@@ -238,4 +238,14 @@ public class Uploader {
             checkTopicPartition(topicPartition);
         }
     }
+
+    /**
+     * Force the uploader to push a partition. Handy when the assignment will be revoked
+     * @param topicPartition The partition to push
+     * @throws Exception if any error occurs while pushing the files
+     */
+    public void forceUpload(TopicPartition topicPartition) throws Exception {
+        LOG.info("Forcing the upload of topic {} partition {}", topicPartition.topic(), topicPartition.partition());
+        this.uploadFiles(topicPartition);
+    }
 }

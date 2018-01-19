@@ -31,10 +31,13 @@ import com.pinterest.secor.uploader.Uploader;
 import com.pinterest.secor.util.ReflectionUtil;
 import com.pinterest.secor.writer.MessageWriter;
 import kafka.consumer.ConsumerTimeoutException;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Consumer is a top-level component coordinating reading, writing, and uploading Kafka log
@@ -46,7 +49,7 @@ import java.io.IOException;
  *
  * @author Pawel Garbacki (pawel@pinterest.com)
  */
-public class Consumer extends Thread {
+public class Consumer extends Thread implements ConsumerRebalanceListener {
     private static final Logger LOG = LoggerFactory.getLogger(Consumer.class);
 
     protected SecorConfig mConfig;
@@ -67,7 +70,7 @@ public class Consumer extends Thread {
 
     private void init() throws Exception {
         mOffsetTracker = new OffsetTracker();
-        mMessageReader = new MessageReader(mConfig, mOffsetTracker);
+        mMessageReader = new MessageReader(mConfig, mOffsetTracker, this);
         mMetricCollector = ReflectionUtil.createMetricCollector(mConfig.getMetricsCollectorClass());
 
         FileRegistry fileRegistry = new FileRegistry(mConfig);
@@ -180,5 +183,26 @@ public class Consumer extends Thread {
      */
     public OffsetTracker getOffsetTracker() {
         return this.mOffsetTracker;
+    }
+
+
+    @Override
+    public void onPartitionsRevoked(Collection<TopicPartition> revokedPartitions) {
+        for (TopicPartition topicPartition: revokedPartitions) {
+            try {
+                mUploader.forceUpload(topicPartition);
+            } catch (Exception exc) {
+                LOG.error("Exception while trying to push partition " + topicPartition.partition()
+                        + " from topic " + topicPartition.topic()
+                        + " that is getting rebalanced", exc);
+            }
+        }
+    }
+
+    @Override
+    public void onPartitionsAssigned(Collection<TopicPartition> assignedPartitions) {
+        for (TopicPartition topicPartition: assignedPartitions) {
+            LOG.error("We got assigned topic {} partition {}", topicPartition.topic(), topicPartition.partition());
+        }
     }
 }

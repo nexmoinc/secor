@@ -18,6 +18,7 @@ package com.pinterest.secor.reader;
 
 import com.pinterest.secor.common.OffsetTracker;
 import com.pinterest.secor.common.SecorConfig;
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.common.TopicPartition;
 import com.pinterest.secor.message.Message;
 import com.pinterest.secor.timestamp.KafkaMessageTimestampFactory;
@@ -55,8 +56,8 @@ public class MessageReader {
     protected Iterator<ConsumerRecord<String, String>> mRecordsIterator = null;
     protected KafkaMessageTimestampFactory mKafkaMessageTimestampFactory;
 
-    public MessageReader(SecorConfig config, OffsetTracker offsetTracker) throws
-            UnknownHostException {
+    public MessageReader(SecorConfig config, OffsetTracker offsetTracker,
+                         ConsumerRebalanceListener rebalanceListener) throws UnknownHostException {
         mConfig = config;
         mOffsetTracker = offsetTracker;
 
@@ -65,7 +66,7 @@ public class MessageReader {
         if (!mConfig.getKafkaTopicBlacklist().isEmpty()) {
             throw new RuntimeException("Topic blacklist is not supported.");
         }
-        mConsumer.subscribe(Pattern.compile(mConfig.getKafkaTopicFilter()));
+        mConsumer.subscribe(Pattern.compile(mConfig.getKafkaTopicFilter()), rebalanceListener);
 
         mLastAccessTime = new HashMap<TopicPartition, Long>();
         StatsUtil.setLabel("secor.kafka.consumer.id", IdUtil.getConsumerId());
